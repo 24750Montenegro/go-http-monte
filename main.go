@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 )
 
 
@@ -39,6 +40,8 @@ var canciones []Cancion
 
 func main() {
 	cargarDatos()
+
+	http.HandleFunc("/api/canciones", handlerCanciones)
 
 	log.Println("Servidor corriendo en", puerto)
 	log.Fatal(http.ListenAndServe(puerto, nil))
@@ -127,4 +130,45 @@ func validarCancion(c Cancion) (bool, string) {
 		return false, "El campo 'vistas' no puede ser negativo"
 	}
 	return true, ""
+}
+
+
+
+
+// HANDLER PRINCIPAL  
+
+func handlerCanciones(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		handleGet(w, r)
+	default:
+		respError(w, 405, "Metodo no permitido", "Usa GET en /api/canciones")
+	}
+}
+
+
+//   GET  
+
+func handleGet(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query()
+
+	// busqueda por query param id
+	idParam := query.Get("id")
+	if idParam != "" {
+		id, err := strconv.Atoi(idParam)
+		if err != nil {
+			respError(w, 400, "ID invalido", "El query param 'id' debe ser un numero")
+			return
+		}
+		for _, c := range canciones {
+			if c.ID == id {
+				respJSON(w, 200, c)
+				return
+			}
+		}
+		respError(w, 404, "No encontrado", "No existe una cancion con id "+idParam)
+		return
+	}
+
+	respJSON(w, 200, canciones)
 }
