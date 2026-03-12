@@ -137,14 +137,17 @@ func validarCancion(c Cancion) (bool, string) {
 
 
 
+
 // HANDLER PRINCIPAL  
 
 func handlerCanciones(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
 		handleGet(w, r)
+	case http.MethodPost:
+		handlePost(w, r)
 	default:
-		respError(w, 405, "Metodo no permitido", "Usa GET en /api/canciones")
+		respError(w, 405, "Metodo no permitido", "Usa GET o POST en /api/canciones")
 	}
 }
 
@@ -210,4 +213,28 @@ func handleGetPorID(w http.ResponseWriter, id int) {
 		}
 	}
 	respError(w, 404, "No encontrado", "No existe una cancion con id "+strconv.Itoa(id))
+}
+
+
+//   POST  
+
+func handlePost(w http.ResponseWriter, r *http.Request) {
+	var nueva Cancion
+
+	err := json.NewDecoder(r.Body).Decode(&nueva)
+	if err != nil {
+		respError(w, 400, "JSON invalido", "El body no es JSON valido")
+		return
+	}
+
+	if ok, msg := validarCancion(nueva); !ok {
+		respError(w, 400, "Validacion fallida", msg)
+		return
+	}
+
+	nueva.ID = siguienteID()
+	canciones = append(canciones, nueva)
+	guardarDatos()
+
+	respJSON(w, 201, nueva)
 }
