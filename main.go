@@ -173,8 +173,12 @@ func handlerPorID(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
 		handleGetPorID(w, id)
+	case http.MethodPut:
+		handlePut(w, r, id)
+	case http.MethodPatch:
+		handlePatch(w, r, id)
 	default:
-		respError(w, 405, "Metodo no permitido", "Usa GET en /api/canciones/{id}")
+		respError(w, 405, "Metodo no permitido", "Usa GET, PUT o PATCH en /api/canciones/{id}")
 	}
 }
 
@@ -237,4 +241,76 @@ func handlePost(w http.ResponseWriter, r *http.Request) {
 	guardarDatos()
 
 	respJSON(w, 201, nueva)
+}
+
+
+//   PUT  
+
+func handlePut(w http.ResponseWriter, r *http.Request, id int) {
+	var actualizada Cancion
+
+	err := json.NewDecoder(r.Body).Decode(&actualizada)
+	if err != nil {
+		respError(w, 400, "JSON invalido", "El body no es JSON valido")
+		return
+	}
+
+	if ok, msg := validarCancion(actualizada); !ok {
+		respError(w, 400, "Validacion fallida", msg)
+		return
+	}
+
+	for i, c := range canciones {
+		if c.ID == id {
+			actualizada.ID = id
+			canciones[i] = actualizada
+			guardarDatos()
+			respJSON(w, 200, actualizada)
+			return
+		}
+	}
+
+	respError(w, 404, "No encontrado", "No existe una cancion con id "+strconv.Itoa(id))
+}
+
+
+//   PATCH  
+
+func handlePatch(w http.ResponseWriter, r *http.Request, id int) {
+	var campos map[string]interface{}
+
+	err := json.NewDecoder(r.Body).Decode(&campos)
+	if err != nil {
+		respError(w, 400, "JSON invalido", "El body no es JSON valido")
+		return
+	}
+
+	for i, c := range canciones {
+		if c.ID == id {
+			if val, ok := campos["cancion"]; ok {
+				canciones[i].Nombre = val.(string)
+			}
+			if val, ok := campos["artista"]; ok {
+				canciones[i].Artista = val.(string)
+			}
+			if val, ok := campos["album"]; ok {
+				canciones[i].Album = val.(string)
+			}
+			if val, ok := campos["genero"]; ok {
+				canciones[i].Genero = val.(string)
+			}
+			if val, ok := campos["duracion"]; ok {
+				canciones[i].Duracion = val.(string)
+			}
+			if val, ok := campos["vistas"]; ok {
+				canciones[i].Vistas = int(val.(float64))
+			}
+
+			guardarDatos()
+			respJSON(w, 200, canciones[i])
+			return
+		}
+	}
+
+	respError(w, 404, "No encontrado", "No existe una cancion con id "+strconv.Itoa(id))
 }
