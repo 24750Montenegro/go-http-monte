@@ -177,8 +177,10 @@ func handlerPorID(w http.ResponseWriter, r *http.Request) {
 		handlePut(w, r, id)
 	case http.MethodPatch:
 		handlePatch(w, r, id)
+	case http.MethodDelete:
+		handleDelete(w, id)
 	default:
-		respError(w, 405, "Metodo no permitido", "Usa GET, PUT o PATCH en /api/canciones/{id}")
+		respError(w, 405, "Metodo no permitido", "Usa GET, PUT, PATCH o DELETE en /api/canciones/{id}")
 	}
 }
 
@@ -206,7 +208,45 @@ func handleGet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	respJSON(w, 200, canciones)
+
+	// Filtros combinados
+	resultado := canciones
+
+	if artista := query.Get("artista"); artista != "" {
+		resultado = filtrar(resultado, func(c Cancion) bool {
+			return strings.EqualFold(c.Artista, artista)
+		})
+	}
+
+	if genero := query.Get("genero"); genero != "" {
+		resultado = filtrar(resultado, func(c Cancion) bool {
+			return strings.EqualFold(c.Genero, genero)
+		})
+	}
+
+	if album := query.Get("album"); album != "" {
+		resultado = filtrar(resultado, func(c Cancion) bool {
+			return strings.EqualFold(c.Album, album)
+		})
+	}
+
+	if nombre := query.Get("cancion"); nombre != "" {
+		resultado = filtrar(resultado, func(c Cancion) bool {
+			return strings.Contains(strings.ToLower(c.Nombre), strings.ToLower(nombre))
+		})
+	}
+
+	respJSON(w, 200, resultado)
+}
+
+func filtrar(lista []Cancion, condicion func(Cancion) bool) []Cancion {
+	var res []Cancion
+	for _, c := range lista {
+		if condicion(c) {
+			res = append(res, c)
+		}
+	}
+	return res
 }
 
 func handleGetPorID(w http.ResponseWriter, id int) {
@@ -308,6 +348,22 @@ func handlePatch(w http.ResponseWriter, r *http.Request, id int) {
 
 			guardarDatos()
 			respJSON(w, 200, canciones[i])
+			return
+		}
+	}
+
+	respError(w, 404, "No encontrado", "No existe una cancion con id "+strconv.Itoa(id))
+}
+
+
+//   DELETE  
+
+func handleDelete(w http.ResponseWriter, id int) {
+	for i, c := range canciones {
+		if c.ID == id {
+			canciones = append(canciones[:i], canciones[i+1:]...)
+			guardarDatos()
+			respJSON(w, 200, map[string]string{"mensaje": "Cancion eliminada"})
 			return
 		}
 	}
