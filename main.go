@@ -5,144 +5,126 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"strconv"
 )
 
-type Team struct {
-	ID   int    `json:"id"`
-	Name string `json:"name"`
+
+
+
+// puerto con el número de carnet
+const puerto = ":24750"
+const archivoJSON = "./data/canciones.json"
+
+
+
+
+// Estructura de una cancion
+type Cancion struct {
+	ID       int    `json:"id"`
+	Nombre   string `json:"cancion"`
+	Artista  string `json:"artista"`
+	Album    string `json:"album"`
+	Genero   string `json:"genero"`
+	Duracion string `json:"duracion"`
+	Vistas   int    `json:"vistas"`
 }
 
-type Message struct {
-	Message string `json:"message"`
+// respuesta de error
+type RespError struct {
+	Status  int    `json:"status"`
+	Error   string `json:"error"`
+	Detalle string `json:"detalle"`
 }
 
-var teams []Team
+var canciones []Cancion
 
 func main() {
-	loadTeams()
+	cargarDatos()
 
-	http.HandleFunc("/api/ping", pingHandler)
-	http.HandleFunc("/api/teams", teamsHandler)
-
-	log.Println("POST JSON API running on :80")
-	log.Fatal(http.ListenAndServe(":80", nil))
+	log.Println("Servidor corriendo en", puerto)
+	log.Fatal(http.ListenAndServe(puerto, nil))
 }
 
-func loadTeams() {
-	file, err := os.ReadFile("./data/teams.json")
+
+
+
+//DATOS  
+func cargarDatos() {
+	archivo, err := os.ReadFile(archivoJSON)
 	if err != nil {
-		log.Fatal("Error reading file:", err)
+		log.Fatal("Error leyendo archivo:", err)
 	}
 
-	err = json.Unmarshal(file, &teams)
+	err = json.Unmarshal(archivo, &canciones)
 	if err != nil {
-		log.Fatal("Error parsing JSON:", err)
+		log.Fatal("Error parseando JSON:", err)
 	}
 }
 
-func pingHandler(w http.ResponseWriter, r *http.Request) {
-	response := Message{
-		Message: "pong",
-	}
 
-	writeJSON(w, http.StatusOK, response)
-}
-
-func teamsHandler(w http.ResponseWriter, r *http.Request) {
-
-	switch r.Method {
-
-	case http.MethodGet:
-		handleGetTeams(w, r)
-
-	case http.MethodPost:
-		handleCreateTeam(w, r)
-
-	default:
-		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
-	}
-}
-
-func handleGetTeams(w http.ResponseWriter, r *http.Request) {
-	query := r.URL.Query()
-	idParam := query.Get("id")
-
-	if idParam == "" {
-		writeJSON(w, http.StatusOK, teams)
+func guardarDatos() {
+	datos, err := json.MarshalIndent(canciones, "", "  ")
+	if err != nil {
+		log.Println("Error al convertir a JSON:", err)
 		return
 	}
 
-	id, err := strconv.Atoi(idParam)
+	err = os.WriteFile(archivoJSON, datos, 0644)
 	if err != nil {
-		http.Error(w, "Invalid id parameter", http.StatusBadRequest)
-		return
+		log.Println("Error escribiendo archivo:", err)
 	}
+}
 
-	for _, team := range teams {
-		if team.ID == id {
-			writeJSON(w, http.StatusOK, team)
-			return
+func siguienteID() int {
+	max := 0
+	for _, c := range canciones {
+		if c.ID > max {
+			max = c.ID
 		}
 	}
-
-	http.Error(w, "Team not found", http.StatusNotFound)
+	return max + 1
 }
 
-func handleCreateTeam(w http.ResponseWriter, r *http.Request) {
 
-	var newTeam Team
 
-	err := json.NewDecoder(r.Body).Decode(&newTeam)
-	if err != nil {
-		http.Error(w, "Invalid JSON body", http.StatusBadRequest)
-		return
-	}
 
-	if newTeam.Name == "" {
-		http.Error(w, "Name is required", http.StatusBadRequest)
-		return
-	}
 
-	newTeam.ID = generateNextID()
+//RESPUESTAS JSON  
 
-	teams = append(teams, newTeam)
-	// saveTeams()
-
-	writeJSON(w, http.StatusCreated, newTeam)
-}
-
-func generateNextID() int {
-	maxID := 0
-
-	for _, team := range teams {
-		if team.ID > maxID {
-			maxID = team.ID
-		}
-	}
-
-	return maxID + 1
-}
-
-// func saveTeams() {
-// 	data, err := json.MarshalIndent(teams, "", "  ")
-// 	if err != nil {
-// 		log.Println("Error marshaling JSON:", err)
-// 		return
-// 	}
-
-// 	err = os.WriteFile("./data/teams.json", data, 0644)
-// 	if err != nil {
-// 		log.Println("Error writing file:", err)
-// 	}
-// }
-
-func writeJSON(w http.ResponseWriter, status int, payload interface{}) {
+func respJSON(w http.ResponseWriter, status int, datos interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
+	json.NewEncoder(w).Encode(datos)
+}
 
-	err := json.NewEncoder(w).Encode(payload)
-	if err != nil {
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+func respError(w http.ResponseWriter, status int, error string, detalle string) {
+	resp := RespError{
+		Status:  status,
+		Error:   error,
+		Detalle: detalle,
 	}
+	respJSON(w, status, resp)
+}
+
+
+
+
+// VALIDACION  
+
+func validarCancion(c Cancion) (bool, string) {
+	if c.Nombre == "" {
+		return false, "El campo 'cancion' es requerido"
+	}
+	if c.Artista == "" {
+		return false, "El campo 'artista' es requerido"
+	}
+	if c.Genero == "" {
+		return false, "El campo 'genero' es requerido"
+	}
+	if c.Duracion == "" {
+		return false, "El campo 'duracion' es requerido"
+	}
+	if c.Vistas < 0 {
+		return false, "El campo 'vistas' no puede ser negativo"
+	}
+	return true, ""
 }
