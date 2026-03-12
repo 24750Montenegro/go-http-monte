@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 )
 
 
@@ -41,6 +42,7 @@ var canciones []Cancion
 func main() {
 	cargarDatos()
 
+	http.HandleFunc("/api/canciones/", handlerPorID)
 	http.HandleFunc("/api/canciones", handlerCanciones)
 
 	log.Println("Servidor corriendo en", puerto)
@@ -147,6 +149,33 @@ func handlerCanciones(w http.ResponseWriter, r *http.Request) {
 }
 
 
+
+
+// HANDLER POR ID
+
+func handlerPorID(w http.ResponseWriter, r *http.Request) {
+	partes := strings.Split(r.URL.Path, "/")
+
+	if len(partes) < 4 || partes[3] == "" {
+		respError(w, 400, "ID faltante", "Incluye un ID en la URL: /api/canciones/1")
+		return
+	}
+
+	id, err := strconv.Atoi(partes[3])
+	if err != nil {
+		respError(w, 400, "ID invalido", "El ID debe ser un numero entero")
+		return
+	}
+
+	switch r.Method {
+	case http.MethodGet:
+		handleGetPorID(w, id)
+	default:
+		respError(w, 405, "Metodo no permitido", "Usa GET en /api/canciones/{id}")
+	}
+}
+
+
 //   GET  
 
 func handleGet(w http.ResponseWriter, r *http.Request) {
@@ -171,4 +200,14 @@ func handleGet(w http.ResponseWriter, r *http.Request) {
 	}
 
 	respJSON(w, 200, canciones)
+}
+
+func handleGetPorID(w http.ResponseWriter, id int) {
+	for _, c := range canciones {
+		if c.ID == id {
+			respJSON(w, 200, c)
+			return
+		}
+	}
+	respError(w, 404, "No encontrado", "No existe una cancion con id "+strconv.Itoa(id))
 }
